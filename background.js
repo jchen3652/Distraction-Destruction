@@ -10,6 +10,8 @@ var previousURL = '';
 var capped = true;
 var lastFocusEvent = 0; // amount of times since the last time
 
+var lostFocusEventTriggered = false;
+
 // Boonkganged for easier logging
 var bkg = chrome.extension.getBackgroundPage().console;
 
@@ -24,34 +26,51 @@ chrome.runtime.onInstalled.addListener(function() {
 
 // Called when tab is changed
 chrome.tabs.onActivated.addListener(function(activeInfo) {
-  handlePageChange();
+  bkg.log('tab event occured');
+  if(lostFocusEventTriggered) {
+    lostFocusEventTriggered = false;
+      bkg.log('but it was rejected');
+  } else {
+    handlePageChange();
+  }
 });
 
 // Called when tab is updated
 chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
-  handlePageChange();
+  bkg.log('tab event occured');
+  if(lostFocusEventTriggered) {
+    lostFocusEventTriggered = false;
+    bkg.log('but it was rejected');
+  } else {
+    handlePageChange();
+  }
 });
 
 // Called when focus changes
 chrome.windows.onFocusChanged.addListener(function(window) {
+  bkg.log('begin focusChanged listener');
   if (lastFocusEvent == 0) {
     lastFocusEvent = Date.now();
   } else {
     currentTime = Date.now();
 
-    if ((currentTime - lastFocusEvent) < 1000) {
+    if ((currentTime - lastFocusEvent) <= 100) {
       bkg.log('crisis averted');
     } else {
+      pauseTabs = true;
       if ((window == chrome.windows.WINDOW_ID_NONE)) {
         bkg.log('Window lost focus');
+        lostFocusEventTriggered = true;
         cap();
       } else {
         bkg.log('Window regained focus');
         handlePageChange();
       }
+      pauseTabs = false;
       lastFocusEvent = Date.now();
     }
   }
+  bkg.log('end focusChanged listener');
 });
 
 // General page change call
