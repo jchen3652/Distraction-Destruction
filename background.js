@@ -9,6 +9,7 @@ var logTimeDiffThreshold = 3000;
 var previousURL = '';
 var capped = true;
 var lastFocusEvent = 0; // amount of times since the last time
+var previousTabID;
 
 var lostFocusEventTriggered = false;
 
@@ -26,21 +27,29 @@ chrome.runtime.onInstalled.addListener(function() {
 
 // Called when tab is changed
 chrome.tabs.onActivated.addListener(function(activeInfo) {
+  bkg.log('tab ID: ' + activeInfo.tabId)
   bkg.log('tab event occured');
-  if(lostFocusEventTriggered) {
-    lostFocusEventTriggered = false;
-      bkg.log('but it was rejected');
-  } else {
+  if (activeInfo.tabId != previousTabID) {
     handlePageChange();
+    previousTabID = activeInfo.tabID;
+    bkg.log('tab ID changed, so lost focus overrided');
+  } else if (lostFocusEventTriggered) {
+    lostFocusEventTriggered = false;
+    bkg.log('but it was rejected');
+
+  } else {
+    bkg.log('nothing should happen');
   }
 });
 
 // Called when tab is updated
 chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
+  // bkg.log('changeInfo url: ' + changeInfo.url());
   bkg.log('tab event occured');
-  if(lostFocusEventTriggered) {
+  if (lostFocusEventTriggered) {
     lostFocusEventTriggered = false;
     bkg.log('but it was rejected');
+
   } else {
     handlePageChange();
   }
@@ -65,6 +74,7 @@ chrome.windows.onFocusChanged.addListener(function(window) {
       } else {
         bkg.log('Window regained focus');
         handlePageChange();
+        // lostFocusEventTriggered = true;
       }
       pauseTabs = false;
       lastFocusEvent = Date.now();
@@ -92,9 +102,9 @@ function handlePageChange() {
       var toStore = new Object();
       toStore.url = tablink;
       toStore.startTime = 0;
-      toStore.endTime;
-      toStore.duration;
-      toStore.rawDuration;
+      toStore.endTime = 0;
+      toStore.duration = '00:00:00';
+      toStore.rawDuration = 0;
 
       chrome.storage.local.get({
         log: []
@@ -108,8 +118,9 @@ function handlePageChange() {
         chrome.storage.local.set({
           log: logArray
         }, function() {
-          bkg.log(logArray);
+
         });
+        bkg.log(result.log);
       });
 
       // Executes if uncapped and not a repeat
@@ -186,9 +197,12 @@ function cap() {
 
 
 
+    bkg.log('log after being capped:')
+    chrome.storage.local.set(result, function() {
 
-    chrome.storage.local.set(result);
+    });
     bkg.log(result.log);
+
   });
 }
 
