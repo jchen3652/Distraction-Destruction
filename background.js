@@ -91,7 +91,7 @@ function handlePageChange() {
 
     if (tablink.includes('devtools')) {
       // Do nothing
-    } else if (capped) {
+    } else if (capped && (previousURL != tablink)) {
       uncap();
 
       previousLogTime = Date.now();
