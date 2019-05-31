@@ -62,10 +62,15 @@ chrome.tabs.onActivated.addListener(function(activeInfo) {
 // Called when tab is updated
 chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
   checkGeneralFocus = false;
-  // bkg.log('Tab update detected');
+  bkg.log('Tab update detected');
   // bkg.log('URL of updated tab: ' + changeInfo.url);
-  if (typeof changeInfo.url == 'undefined') {
-    // bkg.log('No actual change. Doing nothing.');
+
+  var initTime = Date.now();
+
+
+  if (false) {//typeof changeInfo.url == 'undefined') {
+    bkg.log('No actual change. Doing nothing.');
+
 
   } else {
     if (previousTabURL == '') {
