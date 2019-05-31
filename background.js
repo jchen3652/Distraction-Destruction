@@ -43,8 +43,11 @@ chrome.runtime.onInstalled.addListener(function() {
 // Called when tab is changed
 chrome.tabs.onActivated.addListener(function(activeInfo) {
   checkGeneralFocus = false;
-  if ((activeInfo.tabId != previousTabID)) {
+  if ((activeInfo.tabId != previousTabID && !lostFocusEventTriggered)) {
     bkg.log('Tab change detected while window may still be in focus');
+
+    bkg.log('Value of tab capped: ' + capped);
+
     handlePageChange();
     previousTabID = activeInfo.tabID;
 
@@ -103,7 +106,7 @@ chrome.windows.onFocusChanged.addListener(function(window) {
   } else {
     currentTime = Date.now();
 
-    if ((currentTime - lastFocusEvent) <= 250) {
+    if ((currentTime - lastFocusEvent) <= 500) {
       bkg.log('Duplicate focus event blocked');
     } else {
       if ((window == chrome.windows.WINDOW_ID_NONE)) {
@@ -263,7 +266,7 @@ function cap() {
 
     if (!capped) {
       capped = true;
-      bkg.log("Previous entry capped");
+      bkg.log("Log capped");
 
       var currentTime = timeFromStart();
 
