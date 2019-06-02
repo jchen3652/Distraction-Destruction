@@ -10,11 +10,13 @@ var previousURL = '';
 var capped = true; // The log is 'capped' when the last entry has its end time set
 var lastFocusEvent = 0; // amount of times since the last time
 var previousTabID;
-var previousTabURL = '';
-var isDebug = false;
+
+var isDebug = true;
 
 var lostFocusEventTriggered = false;
+
 var checkGeneralFocus = true;
+var lostFocusByTime = false;
 
 // Boonkganged for easier logging
 var bkg = chrome.extension.getBackgroundPage().console;
@@ -23,9 +25,33 @@ setInterval(function() {
   chrome.windows.getCurrent(function(window) {
     // bkg.log(window.focused);
     if (!window.focused && checkGeneralFocus) {
-      // bkg.log('capping due to bogus loss of focus');
-      cap();
+
+
+      chrome.windows.getCurrent(function(innerWindow) {
+        // If it really changed, cap the log
+        if (!innerWindow.focused) {
+          cap();
+
+          if (!lostFocusByTime) {
+            lostFocusByTime = true;
+            bkg.log('Lost focus by time');
+          }
+
+        } else {
+          if (lostFocusByTime) {
+            bkg.log('Regained focus by time');
+            handlePageChange();
+            lostFocusByTime = false;
+          }
+        }
+      });
+
+    } else {
+      bkg.log('False lost focus by time');
     }
+
+
+
   });
 }, 1000);
 
@@ -41,23 +67,29 @@ chrome.runtime.onInstalled.addListener(function() {
 
 // Called when tab is changed
 chrome.tabs.onActivated.addListener(function(activeInfo) {
-  checkGeneralFocus = false;
-  if ((activeInfo.tabId != previousTabID && !lostFocusEventTriggered)) {
-    debugLog('Tab change detected while window may still be in focus');
+  bkg.log('chrome activated function called');
+  chrome.tabs.getSelected(null, function(tab) {
+    checkGeneralFocus = false;
+    if ((tab.url != previousURL && !lostFocusEventTriggered)) {
+      // debugLog('Tab change detected.');
+      lostFocusByTime = false;
+      // debugLog('Value of tab capped: ' + capped);
+      debugLog('Tab URL has changed, so it is known that the page changed.');
+      handlePageChange();
 
-    debugLog('Value of tab capped: ' + capped);
 
-    handlePageChange();
-    previousTabID = activeInfo.tabID;
+      lostFocusEventTriggered = false;
 
-    lostFocusEventTriggered = false;
-  } else if (lostFocusEventTriggered) {
-    lostFocusEventTriggered = false;
-    debugLog('Simultaneous focus change and tab change detected. Only acting upon focus change');
-  } else {
-    debugLog('Nothing should happen');
-  }
-  checkGeneralFocus = true;
+
+    } else if (lostFocusEventTriggered) {
+      lostFocusEventTriggered = false;
+      debugLog('Simultaneous focus change and tab change detected. Only acting upon focus change');
+    } else {
+      debugLog('Nothing should happen');
+    }
+    checkGeneralFocus = true;
+    previousURL = tab.url;
+  });
 
 });
 
@@ -65,6 +97,7 @@ chrome.tabs.onActivated.addListener(function(activeInfo) {
 chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
   checkGeneralFocus = false;
   bkg.log('Tab update detected');
+  lostFocusByTime = false;
   // bkg.log('URL of updated tab: ' + changeInfo.url);
 
   var initTime = Date.now();
@@ -75,9 +108,9 @@ chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
 
 
   } else {
-    if (previousTabURL == '') {
-      previousTabURL = changeInfo.url;
-    } else if (changeInfo.url != previousTabURL) {
+    if (previousURL == '') {
+      previousURL = changeInfo.url;
+    } else if (changeInfo.url != previousURL) {
       if (lostFocusEventTriggered) {
         lostFocusEventTriggered = false;
         debugLog('Simultaneous focus change and tab change detected. Only acting upon focus change')
@@ -95,54 +128,78 @@ chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
 
 // Called when focus changes
 chrome.windows.onFocusChanged.addListener(function(window) {
-  checkGeneralFocus = false;
-  debugLog('Begin focusChanged listener');
-  var currentTime;
-
-  if (lastFocusEvent == 0) {
-    lastFocusEvent = Date.now();
-  } else {
-    currentTime = Date.now();
-
-    if ((currentTime - lastFocusEvent) <= 500) {
-      debugLog('Duplicate focus event blocked');
-    } else {
-      // It thinks through the event that the window has changed. It's not always right so...
-      if ((window == chrome.windows.WINDOW_ID_NONE)) {
-        // Double checks to see whether the window really changed
-        chrome.windows.getCurrent(function(innerWindow) {
-          // If it really changed, cap the log
-          if (innerWindow == chrome.windows.WINDOW_ID_NONE) {
-            bkg.log('Window lost focus');
-            lostFocusEventTriggered = true;
-            cap();
-            // Otherwise, don't cap the log
-          } else {
-            debugLog('False flag for focus loss');
-            handlePageChange();
-          }
-        });
+  // bkg.log('focus change');
+  chrome.tabs.getSelected(null, function(tab) {
 
 
 
-      } else {
-        bkg.log('Window regained focus; log capped: ' + capped);
-        if (!capped) {
-          bkg.log("Window is refocused and uncapped");
-          cap();
-        } else {
-          handlePageChange();
-        }
-        lostFocusEventTriggered = false;
+    checkGeneralFocus = false;
 
+    var currentTime;
 
-        // lostFocusEventTriggered = true;
-      }
+    if (lastFocusEvent == 0) {
       lastFocusEvent = Date.now();
+    } else {
+      currentTime = Date.now();
+
+      if ((currentTime - lastFocusEvent) <= 500) {
+        debugLog('Duplicated focus event blocked. Disregard this message');
+      } else if (tab.url.includes('devtols')) {
+        debugLog('Devtools focus event blocked. Disregard this message.')
+      } else {
+
+
+        // It thinks through the event that the window has changed. It's not always right so...
+        if ((window == chrome.windows.WINDOW_ID_NONE)) {
+          // Double checks to see whether the window really changed
+
+
+          chrome.windows.getCurrent(function(innerWindow) {
+            // If it really changed, cap the log
+            if (innerWindow == chrome.windows.WINDOW_ID_NONE) {
+              bkg.log('Window lost focus');
+              lostFocusEventTriggered = true;
+              cap();
+              lostFocusByTime = false;
+
+
+              // Otherwise, don't cap the log
+            } else {
+              // debugLog('Treating focus change like tab change');
+              // handlePageChange();
+              bkg.log(innerWindow);
+              debugLog("False focus change event.");
+            }
+          });
+
+          // Presumably, then, the focus has in fact been regained
+        } else {
+          lostFocusByTime = false;
+          bkg.log('Window gained focus');
+          // If the focus has been regained while the log is capped
+          if (!capped) {
+            // Uncap the log
+            debugLog('The log is currently uncapped, so it will be incremented.')
+            handlePageChange();
+          } else {
+            if (tab.url == previousURL) {
+              debugLog('False alarm. The tab thingy will handle this.')
+            } else {
+
+              debugLog('The log is currently capped, so it will be uncapped.')
+              handlePageChange();
+            }
+          }
+          lostFocusEventTriggered = false;
+
+
+          // lostFocusEventTriggered = true;
+        }
+        lastFocusEvent = Date.now();
+      }
     }
-  }
-  debugLog('End focusChanged listener');
-  checkGeneralFocus = true;
+    checkGeneralFocus = true;
+  });
 });
 
 // General page change call
@@ -153,95 +210,86 @@ function handlePageChange() {
       previousURL = tablink;
     }
 
-    debugLog('Page handler called. Log capped: ' + capped);
+    debugLog('Page handler called.');
     var tablink = cleanURL(tab.url);
 
     // bkg.log(cleanURL(tab.url));
 
 
-    if (!tablink.includes('devtools')) {
+    chrome.storage.local.get({
+      log: []
+    }, function(result) {
+      var logArray = result.log;
 
-      // If it is already capped, it adds a new term
+      // If the previous entry was capped
       if (capped && (previousURL != tablink)) {
-        chrome.storage.local.get({
-          log: []
-        }, function(result) {
-          uncap();
-          debugLog('Now uncapped');
+        uncap();
+        // debugLog('Now uncapped');
 
-          previousLogTime = Date.now();
-          environmentCreateTime = previousLogTime;
-          // bkg.log('Log time initialized to ' + previousLogTime);
-          previousURL = tablink;
+        previousLogTime = Date.now();
+        environmentCreateTime = previousLogTime;
+        // bkg.log('Log time initialized to ' + previousLogTime);
+        previousURL = tablink;
 
-          var toStore = new Object();
-          toStore.url = tablink;
-          toStore.startTime = 0;
-          toStore.endTime = NaN;
-          toStore.duration = NaN;
-          toStore.rawDuration = NaN;
-
+        var toStore = new Object();
+        toStore.url = tablink;
+        toStore.startTime = 0;
+        toStore.endTime = NaN;
+        toStore.duration = NaN;
+        toStore.rawDuration = NaN;
+        // the input argument is ALWAYS an object containing the queried keys
+        // so we select the key we need
 
 
+        logArray[logArray.length] = toStore;
 
-          // the input argument is ALWAYS an object containing the queried keys
-          // so we select the key we need
-          var logArray = result.log;
-
-          logArray[result.log.length] = toStore;
-
-          chrome.storage.local.set({
-            log: logArray
-          }, function() {
-
-          });
-          bkg.log('Log from uncapping (may be duped): ')
-          bkg.log(result.log);
+        chrome.storage.local.set({
+          log: logArray
+        }, function() {
+          bkg.log('Log from uncapping')
+          bkg.log(logArray);
         });
 
-        // Executes if uncapped and not a repeat
+
+        // If the previous entry isn't capped
       } else if ((!capped) && (previousURL != tablink)) {
 
-        chrome.storage.local.get({
-          log: []
-        }, function(result) {
-          // Update information
-          bkg.log('Closed previous entry and created new');
+        // Update information
+        bkg.log('Incrementing entry. Log will increase in size by one.');
 
 
-          // bkg.log(tablink + ' ' + Date());
-          previousURL = tablink;
-          var currentTime = timeFromStart();
+        // bkg.log(tablink + ' ' + Date());
+        previousURL = tablink;
+        var currentTime = timeFromStart();
 
 
-          var temp = result.log;
+        // Increment next entry
+        var toStore = new Object();
+        toStore.url = tablink;
+        toStore.startTime = currentTime;
+        logArray[logArray.length] = toStore;
 
-          // Increment next entry
-          var toStore = new Object();
-          toStore.url = tablink;
-          toStore.startTime = currentTime;
-          temp[temp.length] = toStore;
+        // Modify previous entry
+        var previousEntry = logArray[logArray.length - 2];
+        previousEntry.endTime = currentTime;
+        previousEntry.rawDuration = currentTime - previousEntry.startTime;
+        previousEntry.duration = msToPrettyString(previousEntry.rawDuration);
 
-          // Modify previous entry
-          var previousEntry = temp[temp.length - 2];
-          previousEntry.endTime = currentTime;
-          previousEntry.rawDuration = currentTime - previousEntry.startTime;
-          previousEntry.duration = msToPrettyString(previousEntry.rawDuration);
-
-          // Update and log results
-          chrome.storage.local.set({
-            log: temp
-          });
+        // Update and log results
+        chrome.storage.local.set({
+          log: logArray
+        }, function() {
           bkg.log('Log from incrementation: ');
-          bkg.log(result.log);
+          bkg.log(logArray);
         });
+
+
 
       } else {
         debugLog('False tab switch caught. Previous URL is ' + previousURL + ' and current url is ' + tablink);
       }
-    } else {
-      debugLog('Tab link includes devtools');
-    }
+    });
+
 
   });
 }
@@ -277,7 +325,7 @@ function cap() {
 
     if (!capped) {
       capped = true;
-      bkg.log("Log capped");
+      bkg.log("Log capped. Log will stay the same length.");
 
       var currentTime = timeFromStart();
 
@@ -305,7 +353,7 @@ function cap() {
 function uncap() {
   if (capped) {
     capped = false
-    bkg.log("Previous entry uncapped");
+    bkg.log("Uncapped");
   }
 }
 
@@ -328,7 +376,15 @@ function cleanURL(url) {
 }
 
 function debugLog(toLog) {
-  if(isDebug) {
+  if (isDebug) {
     bkg.log(toLog);
   }
+}
+
+function wait(time) {
+  var time = Date.now();
+  while (Date.now() < time) {
+    // Do nothing
+  }
+  bkg.log('Waited for ' + time + ' ms.')
 }
