@@ -34,45 +34,62 @@ chrome.runtime.onInstalled.addListener(function() {
     isDebug: isDebug
   }, function() {
     bkg.log('Debug mode: ' + isDebug);
-
   });
 });
 
 setInterval(function() {
-  chrome.windows.getCurrent(function(window) {
-    chrome.windows.getCurrent(function(innerWindow) {
-      // If it really changed, cap the log
-      if (!innerWindow.focused) {
-        cap();
-        if (!lostFocusByTime) {
-          lostFocusByTime = true;
-          if (!timeFocusLoggedOnce) {
-            bkg.log('Lost focus by time');
-            timeFocusLoggedOnce = true;
-          }
-          previousURL = '';
-        }
+  chrome.windows.getCurrent(function(innerWindow) {
 
+
+
+    // If it really changed, cap the log
+    var isFocused = false;
+
+
+    try {
+      isFocused = innerWindow.focused;
+    } catch (err) {
+      isFocused = false;
+      if (chrome.runtime.lastError) {
+        debugWarn("Whoops.. " + chrome.runtime.lastError.message);
       } else {
-        if (lostFocusByTime) {
-          if (timeFocusLoggedOnce) {
-            timeFocusLoggedOnce = false;
-            bkg.log('Regained focus by time')
-          }
-          // bkg.log('Regained focus by time');
-          handlePageChange();
-          lostFocusByTime = false;
-        } else {
-
-          debugLog('False lost focus by time');
-        }
+        // do nothing
       }
-    });
+
+    }
+
+
+    if (!isFocused) {
+      cap();
+      if (!lostFocusByTime) {
+        lostFocusByTime = true;
+        if (!timeFocusLoggedOnce) {
+          bkg.log('Lost focus by time');
+          timeFocusLoggedOnce = true;
+        }
+        previousURL = '';
+      }
+
+    } else {
+      if (isFocused && lostFocusByTime) {
+        if (timeFocusLoggedOnce) {
+          timeFocusLoggedOnce = false;
+          bkg.log('Regained focus by time');
+
+        }
+        // bkg.log('Regained focus by time')
+        // bkg.log('Regained focus by time');
+        handlePageChange();
+        lostFocusByTime = false;
+      } else {
+
+        debugLog('False lost focus by time');
+      }
+    }
+
   });
+
 }, 1000);
-
-
-
 
 // Called when tab is changed
 chrome.tabs.onActivated.addListener(function(activeInfo) {
@@ -107,9 +124,7 @@ chrome.tabs.onActivated.addListener(function(activeInfo) {
 chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
   checkGeneralFocus = false;
   // bkg.log('Tab update detected');
-
   // bkg.log('URL of updated tab: ' + changeInfo.url);
-
   if (previousURL == '') {
     previousURL = changeInfo.url;
   } else if (changeInfo.url != previousURL) {
@@ -137,7 +152,7 @@ chrome.windows.onFocusChanged.addListener(function(window) {
     } catch (err) {
       isDevTools = false;
       if (chrome.runtime.lastError) {
-        console.warn("Whoops.. " + chrome.runtime.lastError.message);
+        debugWarn("Whoops.. " + chrome.runtime.lastError.message);
       }
     }
 
@@ -161,11 +176,23 @@ chrome.windows.onFocusChanged.addListener(function(window) {
           // Double checks to see whether the window really changed
           chrome.windows.getCurrent(function(innerWindow) {
             // If it really changed, cap the log
-            if (!innerWindow.focused) {
+            var isFocused;
+
+            try {
+              isFocused = innerWindow.focused;
+            } catch (err) {
+              innerWindow = false;
+              if (chrome.runtime.lastError) {
+                console.warn("Whoops.. " + chrome.runtime.lastError.message);
+              }
+            }
+
+            if (!isFocused) {
               bkg.log('Window lost focus');
               lostFocusEventTriggered = true;
               cap();
               lostFocusByTime = false;
+
               // Otherwise, don't cap the log
             } else {
               debugLog("False focus change event.");
@@ -206,76 +233,83 @@ function handlePageChange() {
     log: []
   }, function(result) {
     chrome.tabs.getSelected(null, function(tab) {
-      if (previousURL == '') {
-        previousURL = tablink;
-      }
-
-      debugLog('Page handler called.');
-      var tablink = cleanURL(tab.url);
-
-      if (tablink.includes('devtools')) {
-        debugLog('devtools handling blocked.')
+      if (chrome.runtime.lastError) {
+        debugWarn("Whoops.. " + chrome.runtime.lastError.message);
       } else {
-        var logArray = result.log;
 
-        // If the previous entry was capped
-        if (capped && (previousURL != tablink)) {
-          uncap();
-          // debugLog('Now uncapped');
-
-          previousLogTime = Date.now();
-          environmentCreateTime = previousLogTime;
-          // bkg.log('Log time initialized to ' + previousLogTime);
+        if (previousURL == '') {
           previousURL = tablink;
+        }
 
-          var toStore = new Object();
-          toStore.url = tablink;
-          toStore.startTime = 0;
-          toStore.endTime = NaN;
-          toStore.duration = NaN;
-          toStore.rawDuration = NaN;
-          // the input argument is ALWAYS an object containing the queried keys
-          // so we select the key we need
+        debugLog('Page handler called.');
+        var tablink = cleanURL(tab.url);
 
-          logArray[logArray.length] = toStore;
-
-          chrome.storage.local.set({
-            log: logArray
-          }, function() {
-            bkg.log('Log from uncapping')
-            bkg.log(logArray);
-          });
-
-
-          // If the previous entry isn't capped
-        } else if ((!capped) && (previousURL != tablink)) {
-
-          // Update information
-          bkg.log('Incrementing entry. Log will increase in size by one.');
-          previousURL = tablink;
-          var currentTime = timeFromStart();
-
-          // Increment next entry
-          var toStore = new Object();
-          toStore.url = tablink;
-          toStore.startTime = currentTime;
-          logArray[logArray.length] = toStore;
-
-          // Modify previous entry
-          var previousEntry = logArray[logArray.length - 2];
-          previousEntry.endTime = currentTime;
-          previousEntry.rawDuration = currentTime - previousEntry.startTime;
-          previousEntry.duration = msToPrettyString(previousEntry.rawDuration);
-
-          // Update and log results
-          chrome.storage.local.set({
-            log: logArray
-          }, function() {
-            bkg.log('Log from incrementation: ');
-            bkg.log(logArray);
-          });
+        if (tablink.includes('devtools')) {
+          debugLog('devtools handling blocked.')
         } else {
-          debugLog('False tab switch caught. Previous URL is ' + previousURL + ' and current url is ' + tablink);
+          var logArray = result.log;
+
+          // If the previous entry was capped
+          if (capped && (previousURL != tablink)) {
+            uncap();
+            // debugLog('Now uncapped');
+
+            previousLogTime = Date.now();
+            environmentCreateTime = previousLogTime;
+            // bkg.log('Log time initialized to ' + previousLogTime);
+            previousURL = tablink;
+
+            var toStore = new Object();
+            toStore.url = tablink;
+            toStore.startTime = 0;
+            toStore.endTime = NaN;
+            toStore.duration = NaN;
+            toStore.rawDuration = NaN;
+            // the input argument is ALWAYS an object containing the queried keys
+            // so we select the key we need
+
+            logArray[logArray.length] = toStore;
+
+            chrome.storage.local.set({
+              log: logArray
+            }, function() {
+              bkg.log('Log from uncapping')
+              bkg.log(logArray);
+            });
+
+
+            // If the previous entry isn't capped
+          } else if ((!capped) && (previousURL != tablink)) {
+
+            // Update information
+            bkg.log('Incrementing entry. Log will increase in size by one.');
+            previousURL = tablink;
+            var currentTime = timeFromStart();
+
+            // Increment next entry
+            var toStore = new Object();
+            toStore.url = tablink;
+            toStore.startTime = currentTime;
+            logArray[logArray.length] = toStore;
+
+            // Modify previous entry
+            var previousEntry = logArray[logArray.length - 2];
+            previousEntry.endTime = currentTime;
+            previousEntry.rawDuration = currentTime - previousEntry.startTime;
+            previousEntry.duration = msToPrettyString(previousEntry.rawDuration);
+
+            // Update and log results
+            chrome.storage.local.set({
+              log: logArray
+            }, function() {
+              bkg.log('Log from incrementation: ');
+              bkg.log(logArray);
+            });
+          } else {
+
+            debugLog('False tab switch caught. Previous URL is ' + previousURL + ' and current url is ' + tablink);
+
+          }
         }
       }
     });
@@ -331,10 +365,6 @@ function cap() {
       });
       bkg.log(result.log);
     }
-
-
-
-
   });
 }
 
@@ -364,11 +394,25 @@ function cleanURL(url) {
 }
 
 function debugLog(toLog) {
+  if (chrome.runtime.lastError) {
+    debugWarn("Whoops.. " + chrome.runtime.lastError.message);
+  }
   chrome.storage.local.get({
     isDebug
   }, function(result) {
     if (result.isDebug) {
       bkg.log('[DEBUG]: ' + toLog);
+    }
+  });
+}
+
+function debugWarn(toLog) {
+
+  chrome.storage.local.get({
+    isDebug
+  }, function(result) {
+    if (result.isDebug) {
+      bkg.warn('[DEBUG]: ' + toLog);
       // bkg.log('^proper isDebug log');;
       // } else {
       //   bkg.log(result.isDebug);
