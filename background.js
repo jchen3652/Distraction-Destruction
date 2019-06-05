@@ -57,36 +57,36 @@ setInterval(function() {
       }
 
     }
+    if (checkGeneralFocus) {
 
-
-    if (!isFocused) {
-      cap();
-      if (!lostFocusByTime) {
-        lostFocusByTime = true;
-        if (!timeFocusLoggedOnce) {
-          bkg.log('Lost focus by time');
-          timeFocusLoggedOnce = true;
+      if (!isFocused) {
+        cap();
+        if (!lostFocusByTime) {
+          lostFocusByTime = true;
+          if (!timeFocusLoggedOnce) {
+            bkg.log('Lost focus by time');
+            timeFocusLoggedOnce = true;
+          }
+          previousURL = '';
         }
-        previousURL = '';
-      }
 
-    } else {
-      if (isFocused && lostFocusByTime) {
-        if (timeFocusLoggedOnce) {
-          timeFocusLoggedOnce = false;
-          bkg.log('Regained focus by time');
-
-        }
-        // bkg.log('Regained focus by time')
-        // bkg.log('Regained focus by time');
-        handlePageChange();
-        lostFocusByTime = false;
       } else {
+        if (isFocused && lostFocusByTime) {
+          if (timeFocusLoggedOnce) {
+            timeFocusLoggedOnce = false;
+            bkg.log('Regained focus by time');
 
-        debugLog('False lost focus by time');
+          }
+          // bkg.log('Regained focus by time')
+          // bkg.log('Regained focus by time');
+          handlePageChange();
+          lostFocusByTime = false;
+        } else {
+
+          debugLog('False lost focus by time');
+        }
       }
     }
-
   });
 
 }, 1000);
@@ -261,8 +261,8 @@ function handlePageChange() {
 
             var toStore = new Object();
             toStore.url = tablink;
-            toStore.startTime = 0;
-            toStore.endTime = NaN;
+            toStore.rawStartTime = previousLogTime;
+            toStore.rawEndTime = NaN;
             toStore.duration = NaN;
             toStore.rawDuration = NaN;
             // the input argument is ALWAYS an object containing the queried keys
@@ -289,13 +289,13 @@ function handlePageChange() {
             // Increment next entry
             var toStore = new Object();
             toStore.url = tablink;
-            toStore.startTime = currentTime;
+            toStore.rawStartTime = currentTime;
             logArray[logArray.length] = toStore;
 
             // Modify previous entry
             var previousEntry = logArray[logArray.length - 2];
-            previousEntry.endTime = currentTime;
-            previousEntry.rawDuration = currentTime - previousEntry.startTime;
+            previousEntry.rawEndTime = currentTime;
+            previousEntry.rawDuration = currentTime - previousEntry.rawStartTime;
             previousEntry.duration = msToPrettyString(previousEntry.rawDuration);
 
             // Update and log results
@@ -323,7 +323,7 @@ function handlePageChange() {
 
 // Returns time since the creation of the environment
 function timeFromStart() {
-  return Date.now() - environmentCreateTime;
+  return Date.now(); //- environmentCreateTime;
 }
 
 function msToPrettyString(ms) {
@@ -339,9 +339,12 @@ function msToPrettyString(ms) {
 
 function cap() {
 
+
   chrome.storage.local.get({
     log: []
   }, function(result) {
+    var logArray = result.log;
+
     previousURL = '';
 
 
@@ -351,19 +354,19 @@ function cap() {
 
       var currentTime = timeFromStart();
 
-      var previousEntry = result.log[result.log.length - 1];
+      var previousEntry = logArray[logArray.length - 1];
 
-      previousEntry.endTime = currentTime;
-      previousEntry.rawDuration = currentTime - previousEntry.startTime;
+      previousEntry.rawEndTime = currentTime;
+      previousEntry.rawDuration = currentTime - previousEntry.rawStartTime;
       previousEntry.duration = msToPrettyString(previousEntry.rawDuration);
 
-
-
-      bkg.log('Log after being capped:')
-      chrome.storage.local.set(result, function() {
-
+      chrome.storage.local.set({
+        log: logArray
+      }, function() {
+        bkg.log('Log after being capped: ');
+        bkg.log(logArray);
       });
-      bkg.log(result.log);
+
     }
   });
 }
@@ -426,4 +429,33 @@ function wait(time) {
     // Do nothing
   }
   debugLog('Waited for ' + time + ' ms.')
+}
+
+function timeConverter(UNIX_timestamp){
+  var a = new Date(UNIX_timestamp * 1000);
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var year = a.getFullYear();
+  var month = months[a.getMonth()];
+  var date = a.getDate();
+  var hour = a.getHours();
+  var min = a.getMinutes();
+  var sec = a.getSeconds();
+  var time = date + ' ' + month + ' ' + year + ' ' + hour + ':' + min + ':' + sec ;
+  return time;
+}
+
+function TimeWrapper() {
+  this.unixTime = Date.now();
+  this.prettyTime = function() {
+    var a = new Date(this.unixTime * 1000);
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var year = a.getFullYear();
+    var month = months[a.getMonth()];
+    var date = a.getDate();
+    var hour = a.getHours();
+    var min = a.getMinutes();
+    var sec = a.getSeconds();
+    var time = date + ' ' + month + ' ' + year + ' ' + hour + ':' + min + ':' + sec ;
+    return time;
+  }
 }
