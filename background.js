@@ -259,12 +259,14 @@ function handlePageChange() {
             // bkg.log('Log time initialized to ' + previousLogTime);
             previousURL = tablink;
 
-            var toStore = new Object();
-            toStore.url = tablink;
-            toStore.rawStartTime = previousLogTime;
-            toStore.rawEndTime = NaN;
-            toStore.duration = NaN;
-            toStore.rawDuration = NaN;
+            var toStore = new DataEntry(tablink, previousLogTime);
+
+            // var toStore = new Object();
+            // toStore.url = tablink;
+            // toStore.rawStartTime = previousLogTime;
+            // toStore.rawEndTime = NaN;
+            // toStore.duration = NaN;
+            // toStore.rawDuration = NaN;
             // the input argument is ALWAYS an object containing the queried keys
             // so we select the key we need
 
@@ -286,17 +288,23 @@ function handlePageChange() {
             previousURL = tablink;
             var currentTime = timeFromStart();
 
-            // Increment next entry
-            var toStore = new Object();
-            toStore.url = tablink;
-            toStore.rawStartTime = currentTime;
+            // Add next entry
+            var toStore = new DataEntry(tablink, currentTime);
+            // var toStore = new Object();
+            // toStore.url = tablink;
+            // toStore.rawStartTime = currentTime;
             logArray[logArray.length] = toStore;
 
             // Modify previous entry
             var previousEntry = logArray[logArray.length - 2];
-            previousEntry.rawEndTime = currentTime;
-            previousEntry.rawDuration = currentTime - previousEntry.rawStartTime;
-            previousEntry.duration = msToPrettyString(previousEntry.rawDuration);
+            incrementData(previousEntry, currentTime);
+
+
+            // previousEntry.rawEndTime = currentTime;
+            // previousEntry.rawDuration = currentTime - previousEntry.rawStartTime;
+            // previousEntry.duration = msToPrettyString(previousEntry.rawDuration);
+
+
 
             // Update and log results
             chrome.storage.local.set({
@@ -316,7 +324,6 @@ function handlePageChange() {
   });
 }
 
-
 ///////////////////////////////////////////////////////////////////////////////////////////////
 // Utilities
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -335,19 +342,12 @@ function msToPrettyString(ms) {
   return ("0" + hours).slice(-2) + ":" + ("0" + minutes).slice(-2) + ":" + ("0" + Math.floor(seconds)).slice(-2);
 }
 
-
-
 function cap() {
-
-
   chrome.storage.local.get({
     log: []
   }, function(result) {
     var logArray = result.log;
-
     previousURL = '';
-
-
     if (!capped) {
       capped = true;
       bkg.log("Log capping. Log will stay the same length.");
@@ -356,9 +356,11 @@ function cap() {
 
       var previousEntry = logArray[logArray.length - 1];
 
-      previousEntry.rawEndTime = currentTime;
-      previousEntry.rawDuration = currentTime - previousEntry.rawStartTime;
-      previousEntry.duration = msToPrettyString(previousEntry.rawDuration);
+      incrementData(previousEntry, currentTime);
+
+      // previousEntry.rawEndTime = currentTime;
+      // previousEntry.rawDuration = currentTime - previousEntry.rawStartTime;
+      // previousEntry.duration = msToPrettyString(previousEntry.rawDuration);
 
       chrome.storage.local.set({
         log: logArray
@@ -410,7 +412,6 @@ function debugLog(toLog) {
 }
 
 function debugWarn(toLog) {
-
   chrome.storage.local.get({
     isDebug
   }, function(result) {
@@ -431,31 +432,36 @@ function wait(time) {
   debugLog('Waited for ' + time + ' ms.')
 }
 
-function timeConverter(UNIX_timestamp){
+function timeConverter(UNIX_timestamp) {
   var a = new Date(UNIX_timestamp * 1000);
-  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   var year = a.getFullYear();
   var month = months[a.getMonth()];
   var date = a.getDate();
   var hour = a.getHours();
   var min = a.getMinutes();
   var sec = a.getSeconds();
-  var time = date + ' ' + month + ' ' + year + ' ' + hour + ':' + min + ':' + sec ;
+  var time = date + ' ' + month + ' ' + year + ' ' + hour + ':' + min + ':' + sec;
   return time;
 }
 
-function TimeWrapper() {
-  this.unixTime = Date.now();
-  this.prettyTime = function() {
-    var a = new Date(this.unixTime * 1000);
-    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    var year = a.getFullYear();
-    var month = months[a.getMonth()];
-    var date = a.getDate();
-    var hour = a.getHours();
-    var min = a.getMinutes();
-    var sec = a.getSeconds();
-    var time = date + ' ' + month + ' ' + year + ' ' + hour + ':' + min + ':' + sec ;
-    return time;
+class DataEntry {
+  constructor(url, time) {
+    this.url = url;
+    this.time = new TimeWrapper(time);
   }
+}
+
+class TimeWrapper {
+  constructor(rawStartTime) {
+    this.rawStartTime = rawStartTime;
+    var date = new Date(rawStartTime);
+    this.prettyDate = date.toString();
+  }
+}
+
+function incrementData(dataObject, rawEndTime) {
+  dataObject.time.rawEndTime = rawEndTime;
+  dataObject.time.rawDuration = dataObject.time.rawEndTime - dataObject.time.rawStartTime;
+  dataObject.duration = msToPrettyString(dataObject.time.rawDuration);
 }
