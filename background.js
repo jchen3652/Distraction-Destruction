@@ -17,6 +17,7 @@ var lostFocusEventTriggered = false;
 var checkGeneralFocus = true;
 var lostFocusByTime = false;
 var timeFocusLoggedOnce = false;
+var uncapFromWindowChange = false;
 
 // Boonkganged for easier logging
 var bkg = chrome.extension.getBackgroundPage().console;
@@ -100,14 +101,17 @@ chrome.tabs.onActivated.addListener(function(activeInfo) {
       // debugLog('Tab change detected.');
       lostFocusByTime = false;
 
-      // debugLog('Value of tab capped: ' + capped);
-      debugLog('Tab URL has changed, so it is known that the page changed.');
-      handlePageChange();
+      if (!uncapFromWindowChange) {
+        // debugLog('Value of tab capped: ' + capped);
+        debugLog('Tab URL has changed, so it is known that the page changed.');
+        handlePageChange();
 
 
-      lostFocusEventTriggered = false;
+        lostFocusEventTriggered = false;
 
-
+      } else {
+        debugLog('Overlapped tab activated and window change blocked.')
+      }
     } else if (lostFocusEventTriggered) {
       lostFocusEventTriggered = false;
       debugLog('Simultaneous focus change and tab change detected. Only acting upon focus change');
@@ -132,6 +136,7 @@ chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
       lostFocusEventTriggered = false;
       debugLog('Simultaneous focus change and tab change detected. Only acting upon focus change')
     } else {
+      debugLog('Chrome updated function called');
       handlePageChange();
       lostFocusByTime = false;
     }
@@ -216,6 +221,7 @@ chrome.windows.onFocusChanged.addListener(function(window) {
 
               debugLog('The log is currently capped, so it will be uncapped.')
               handlePageChange();
+              uncapFromWindowChange = true;
             }
           }
           lostFocusEventTriggered = false;
@@ -229,28 +235,29 @@ chrome.windows.onFocusChanged.addListener(function(window) {
 
 // General page change call
 function handlePageChange() {
-  chrome.storage.local.get({
-    log: []
-  }, function(result) {
-    chrome.tabs.getSelected(null, function(tab) {
-      if (chrome.runtime.lastError) {
-        debugWarn("Whoops.. " + chrome.runtime.lastError.message);
+  chrome.tabs.getSelected(null, function(tab) {
+    if (chrome.runtime.lastError) {
+      debugWarn("Whoops.. " + chrome.runtime.lastError.message);
+    } else {
+
+      if (previousURL == '') {
+        previousURL = tablink;
+      }
+
+      debugLog('Page handler called.');
+      var tablink = cleanURL(tab.url);
+
+      if (tablink.includes('devtools')) {
+        debugLog('devtools handling blocked.')
       } else {
 
-        if (previousURL == '') {
-          previousURL = tablink;
-        }
+        // If the previous entry was capped
+        if (capped && (previousURL != tablink)) {
+          chrome.storage.local.get({
+            log: []
+          }, function(result) {
 
-        debugLog('Page handler called.');
-        var tablink = cleanURL(tab.url);
-
-        if (tablink.includes('devtools')) {
-          debugLog('devtools handling blocked.')
-        } else {
-          var logArray = result.log;
-
-          // If the previous entry was capped
-          if (capped && (previousURL != tablink)) {
+            var logArray = result.log;
             uncap();
             // debugLog('Now uncapped');
 
@@ -261,15 +268,6 @@ function handlePageChange() {
 
             var toStore = new DataEntry(tablink, previousLogTime);
 
-            // var toStore = new Object();
-            // toStore.url = tablink;
-            // toStore.rawStartTime = previousLogTime;
-            // toStore.rawEndTime = NaN;
-            // toStore.duration = NaN;
-            // toStore.rawDuration = NaN;
-            // the input argument is ALWAYS an object containing the queried keys
-            // so we select the key we need
-
             logArray[logArray.length] = toStore;
 
             chrome.storage.local.set({
@@ -278,11 +276,16 @@ function handlePageChange() {
               bkg.log('Log from uncapping')
               bkg.log(logArray);
             });
+          });
 
+          // If the previous entry isn't capped
+        } else if ((!capped) && (previousURL != tablink)) {
+          chrome.storage.local.get({
+            log: []
+          }, function(result) {
+            var logArray = result.log;
 
-            // If the previous entry isn't capped
-          } else if ((!capped) && (previousURL != tablink)) {
-
+            uncapFromWindowChange = false;
             // Update information
             bkg.log('Incrementing entry. Log will increase in size by one.');
             previousURL = tablink;
@@ -291,17 +294,9 @@ function handlePageChange() {
             // Add next entry
             var toStore = new DataEntry(tablink, currentTime);
             logArray[logArray.length] = toStore;
-
             // Modify previous entry
             var previousEntry = logArray[logArray.length - 2];
             incrementData(previousEntry, currentTime);
-
-
-            // previousEntry.rawEndTime = currentTime;
-            // previousEntry.rawDuration = currentTime - previousEntry.rawStartTime;
-            // previousEntry.duration = msToPrettyString(previousEntry.rawDuration);
-
-
 
             // Update and log results
             chrome.storage.local.set({
@@ -310,14 +305,25 @@ function handlePageChange() {
               bkg.log('Log from incrementation: ');
               bkg.log(logArray);
             });
-          } else {
+          });
 
-            debugLog('False tab switch caught. Previous URL is ' + previousURL + ' and current url is ' + tablink);
+        } else {
+          debugLog('False tab switch caught. Previous URL is ' + previousURL + ' and current url is ' + tablink);
 
-          }
         }
       }
+    }
+
+
+
+    chrome.storage.local.get({
+      log: []
+    }, function(result) {
+
+
     });
+
+
   });
 }
 
@@ -347,6 +353,7 @@ function cap() {
     previousURL = '';
     if (!capped) {
       capped = true;
+      uncapFromWindowChange = false;
       bkg.log("Log capping. Log will stay the same length.");
 
       var currentTime = timeFromStart();
@@ -358,6 +365,7 @@ function cap() {
       // previousEntry.rawEndTime = currentTime;
       // previousEntry.rawDuration = currentTime - previousEntry.rawStartTime;
       // previousEntry.duration = msToPrettyString(previousEntry.rawDuration);
+
 
       chrome.storage.local.set({
         log: logArray
@@ -459,7 +467,7 @@ class TimeWrapper {
 
 class Category {
 
-  constructor (dataObject) {
+  constructor(dataObject) {
     this.sum = 0;
     this.url = dataObject.url;
   }
