@@ -290,9 +290,6 @@ function handlePageChange() {
 
             // Add next entry
             var toStore = new DataEntry(tablink, currentTime);
-            // var toStore = new Object();
-            // toStore.url = tablink;
-            // toStore.rawStartTime = currentTime;
             logArray[logArray.length] = toStore;
 
             // Modify previous entry
@@ -457,6 +454,18 @@ class TimeWrapper {
     this.rawStartTime = rawStartTime;
     var date = new Date(rawStartTime);
     this.prettyDate = date.toString();
+  }
+}
+
+class Category {
+
+  constructor (dataObject) {
+    this.sum = 0;
+    this.url = dataObject.url;
+  }
+
+  equals(otherURL) {
+    return (this.url == otherURL)
   }
 }
 
