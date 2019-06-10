@@ -94,6 +94,8 @@ function DataStorage() {
       }
     }
     bkg.log(this.storageArray);
+    this.storageArray.sort(compare);
+    drawTable('activity', this.storageArray);
   });
 }
 
@@ -109,5 +111,38 @@ function Category(dataObject) {
     if (otherObject.sum != NaN && otherObject.sum != null) {
       this.sum += otherObject.sum;
     }
+  }
+}
+
+function drawTable(tbody, dataSource) {
+  var tr, td;
+  var table = document.getElementById(tbody); // loop through data source
+
+  // while (table.rows.length > 0) {
+  //   table.deleteRow(0);
+  // }
+  while (table.rows.length >= 2) {
+    table.deleteRow(1);
+  }
+
+  for (var i = 0; i < dataSource.length; i++) {
+    tr = table.insertRow(table.rows.length);
+    td = tr.insertCell(tr.cells.length);
+    td.setAttribute("align", "center");
+    td.innerHTML = dataSource[i].url;
+    td = tr.insertCell(tr.cells.length);
+    td.innerHTML = dataSource[i].sum;
+    td = tr.insertCell(tr.cells.length);
+
+  }
+}
+
+function compare(a, b) {
+  if (a.sum > b.sum) {
+    return -1;
+  } else if (a.sum < b.sum) {
+    return 1;
+  } else {
+    return 0;
   }
 }

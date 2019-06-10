@@ -8,10 +8,25 @@
 </head>
 
 <body>
-  <button type="button" id="export">Export data</button>
-  <button type="button" id="analyze">Analyze</button>
-  <input type="checkbox" id="debugBox">Debug</input>
+  <div>
+    <button type="button" id="export">Export data</button>
+    <button type="button" id="analyze">Analyze</button>
+    <input type="checkbox" id="debugBox">Debug</input>
+  </div>
+  <div>
+    <table id="activity" class = "sortable">
+      <thead>
+        <tr>
+          <th id = "site_header">Site</th>
+          <th id = "time_header">Duration</th>
+        </tr>
+
+
+      </thead>
+      <tbody id = "activityBody">
+      </tbody>
+    </table>
+  </div>
 </body>
 <script src="options.js"></script>
-
 </html>

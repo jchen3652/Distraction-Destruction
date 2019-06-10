@@ -5,9 +5,10 @@
   "permissions": ["tabs", "activeTab", "declarativeContent", "storage", {
     "fileSystem": ["write"]
   }],
+  "content_security_policy": "script-src 'self' https://ajax.googleapis.com; object-src 'self'",
   "options_page": "options.html",
   "background": {
-    "scripts": ["background.js"],
+    "scripts": ["utils.js", "background.js"],
     "persistent": false
 
   },
