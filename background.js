@@ -452,17 +452,7 @@ class TimeWrapper {
   }
 }
 
-class Category {
 
-  constructor(dataObject) {
-    this.sum = 0;
-    this.url = dataObject.url;
-  }
-
-  equals(otherURL) {
-    return (this.url == otherURL)
-  }
-}
 
 function incrementData(dataObject, rawEndTime) {
   dataObject.time.rawEndTime = rawEndTime;
