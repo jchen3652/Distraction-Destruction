@@ -104,8 +104,17 @@ function DataStorage() {
     // Build bar chart
     var xAxis = [];
     var yAxis = [];
+
+    var pieURLs = [];
     var percent = [];
+    var pieOutputPercent = [];
     var sum = 0;
+
+    var allOthersPercent = 0;
+    var allOthersSum = 0;
+    var barGraphYAxis = [];
+
+
     for (var i = 0; i < this.storageArray.length; i++) {
       xAxis[i] = this.storageArray[i].url;
       yAxis[i] = this.storageArray[i].sum / 1000;
@@ -114,20 +123,36 @@ function DataStorage() {
 
     for (var i = 0; i < this.storageArray.length; i++) {
       percent[i] = this.storageArray[i].sum / 1000 / sum;
+      if (percent[i] < 0.05) {
+        // pieURLs[i] = "";
+        allOthersPercent += percent[i];
+        allOthersSum += this.storageArray[i].sum / 1000;
+        // percent[i] = 0;
+      } else {
+        pieURLs[i] = this.storageArray[i].url;
+        pieOutputPercent[i] = percent[i];
+        barGraphYAxis[i] = this.storageArray[i].sum/ 1000;
+      }
+    }
+    if (allOthersSum != 0) {
+      pieURLs.push('All others');
+      pieOutputPercent.push(allOthersPercent);
+      barGraphYAxis.push(allOthersSum);
+      // bkg.log(allOthersSum);
+
     }
 
     new Chartist.Bar('#chart2', {
-      labels: xAxis,
+      labels: pieURLs,
       series: [
-        yAxis
+        barGraphYAxis
       ]
     });
 
     // build pie graph
     var data = {
-      labels: xAxis,
-      series: percent
-    };
+      labels: pieURLs,
+      series: pieOutputPercent    };
 
     var options = {
       labelInterpolationFnc: function(value) {
@@ -151,7 +176,7 @@ function DataStorage() {
     ];
 
     new Chartist.Pie('#chart1', data, options, responsiveOptions);
-    
+
   });
 }
 
