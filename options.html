@@ -2,31 +2,74 @@
 <html>
 
 <head>
-  <style>
-
-  </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/chartist.js/latest/chartist.min.css">
+  <script src="https://cdn.jsdelivr.net/chartist.js/latest/chartist.min.js"></script>
 </head>
 
+<style>
+  .tableContainer {
+    float: left;
+    width: 45%;
+    margin: 30px;
+  }
+
+  .centeredDiv {
+    text-align: center;
+  }
+
+  table,
+  th,
+  td {
+    border: 1px solid black;
+  }
+
+  .module {
+    margin:
+  }
+</style>
+
 <body>
-  <div>
+  <div class="centeredDiv">
+    <h style="font-size: 40px;">Distraction Destruction</h>
+  </div>
+
+  <div class="centeredDiv">
+    <button type="button" id="import">Import data</button>
     <button type="button" id="export">Export data</button>
     <button type="button" id="analyze">Analyze</button>
     <input type="checkbox" id="debugBox">Debug</input>
   </div>
-  <div>
-    <table id="activity" class = "sortable">
-      <thead>
-        <tr>
-          <th id = "site_header">Site</th>
-          <th id = "time_header">Duration</th>
-        </tr>
 
-
-      </thead>
-      <tbody id = "activityBody">
-      </tbody>
-    </table>
+  <div class="centeredDiv">
+    <div style=" display: inline-block">
+      <table id="activity">
+        <thead>
+          <tr>
+            <th id="site_header">Site</th>
+            <th id="time_header">Duration</th>
+            <th># of visits</th>
+          </tr>
+        </thead>
+        <tbody id="activityBody">
+        </tbody>
+      </table>
+    </div>
   </div>
+
+  <div class="centeredDiv">
+    <div class="tableContainer">
+      <h1 align="center">Time Distribution</h1>
+      <div class="ct-chart ct-golden-section" id="chart1"></div>
+    </div>
+    <div class="tableContainer">
+      <h1 align="center">Time spent on each site</h1>
+      <div class="ct-chart ct-golden-section" id="chart2"></div>
+    </div>
+  </div>
+
 </body>
+
 <script src="options.js"></script>
+<script src="utils.js"></script>
+
 </html>

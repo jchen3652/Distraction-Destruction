@@ -14,6 +14,9 @@ document.addEventListener('DOMContentLoaded', function() {
       document.getElementById("debugBox").checked = result.isDebug;
       bkg.log('Is debug: ' + result.isDebug);
     });
+
+  // Initialize a Line chart in the container with the ID chart2
+
 });
 
 // Upon debug checkbox pressed
@@ -63,7 +66,7 @@ function DataStorage() {
     this.storageArray[0] = candidate;
 
     var i;
-    for (i = 1; i < logArray.length; i++) {
+    for (i = 1; i < logArray.length - 1; i++) {
       var matchingIndexInStorage;
       var isNew = true;
       var candidate = new Category(logArray[i])
@@ -96,12 +99,70 @@ function DataStorage() {
     bkg.log(this.storageArray);
     this.storageArray.sort(compare);
     drawTable('activity', this.storageArray);
+
+
+    // Build bar chart
+    var xAxis = [];
+    var yAxis = [];
+    var percent = [];
+    var sum = 0;
+    for (var i = 0; i < this.storageArray.length; i++) {
+      xAxis[i] = this.storageArray[i].url;
+      yAxis[i] = this.storageArray[i].sum / 1000;
+      sum += this.storageArray[i].sum / 1000;
+    }
+
+    for (var i = 0; i < this.storageArray.length; i++) {
+      percent[i] = this.storageArray[i].sum / 1000 / sum;
+    }
+
+    new Chartist.Bar('#chart2', {
+      labels: xAxis,
+      series: [
+        yAxis
+      ]
+    });
+
+    // build pie graph
+    var data = {
+      labels: xAxis,
+      series: percent
+    };
+
+    var options = {
+      labelInterpolationFnc: function(value) {
+        return value[0]
+      }
+    };
+
+    var responsiveOptions = [
+      ['screen and (min-width: 640px)', {
+        chartPadding: 30,
+        labelOffset: 100,
+        labelDirection: 'explode',
+        labelInterpolationFnc: function(value) {
+          return value;
+        }
+      }],
+      ['screen and (min-width: 1024px)', {
+        labelOffset: 80,
+        chartPadding: 20
+      }]
+    ];
+
+    new Chartist.Pie('#chart1', data, options, responsiveOptions);
+    
   });
 }
 
 function Category(dataObject) {
   this.sum = dataObject.time.rawDuration;
-  this.url = dataObject.url;
+  this.visits = 1;
+  if (dataObject.url.length == 32 && !dataObject.url.includes('.')) {
+    this.url = 'options';
+  } else {
+    this.url = dataObject.url;
+  }
 
   this.equals = function(otherURL) {
     return (this.url == otherURL);
@@ -110,6 +171,7 @@ function Category(dataObject) {
   this.addTime = function(otherObject) {
     if (otherObject.sum != NaN && otherObject.sum != null) {
       this.sum += otherObject.sum;
+      this.visits++;
     }
   }
 }
@@ -127,12 +189,18 @@ function drawTable(tbody, dataSource) {
 
   for (var i = 0; i < dataSource.length; i++) {
     tr = table.insertRow(table.rows.length);
+
     td = tr.insertCell(tr.cells.length);
     td.setAttribute("align", "center");
     td.innerHTML = dataSource[i].url;
+
     td = tr.insertCell(tr.cells.length);
-    td.innerHTML = dataSource[i].sum;
+    td.setAttribute("align", "center");
+    td.innerHTML = msToPrettyString(dataSource[i].sum);
+
     td = tr.insertCell(tr.cells.length);
+    td.setAttribute("align", "center");
+    td.innerHTML = dataSource[i].visits;
 
   }
 }
